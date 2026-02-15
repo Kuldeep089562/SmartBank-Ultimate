@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>SmartBank Ultimate</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{margin:0;font-family:Arial;background:#eef2f7;}
+header{background:#0a1f44;color:white;padding:15px 30px;display:flex;justify-content:space-between;}
+.container{max-width:1100px;margin:auto;padding:20px;}
+.card{background:white;padding:20px;border-radius:10px;box-shadow:0 4px 10px rgba(0,0,0,0.1);margin-bottom:20px;}
+input,select{width:100%;padding:8px;margin:5px 0;}
+button{padding:8px 15px;background:#0a1f44;color:white;border:none;border-radius:5px;cursor:pointer;}
+.dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;}
+.transaction{border-bottom:1px solid #ddd;padding:8px 0;display:flex;justify-content:space-between;font-size:14px;}
+.hidden{display:none;}
+.admin-box{background:#ffe8cc;padding:10px;border-radius:8px;}
+</style>
+</head>
+
+<body>
+
+<header>
+<div>SmartBank Ultimate</div>
+<div id="topUser"></div>
+</header>
+
+<div class="container">
+
+<!-- AUTH -->
+<div id="auth">
+
+<div class="card">
+<h3>Register</h3>
+<input id="regUser" placeholder="Username">
+<input id="regPass" type="password" placeholder="Password">
+<button onclick="register()">Register</button>
+</div>
+
+<div class="card">
+<h3>Login</h3>
+<input id="logUser" placeholder="Username">
+<input id="logPass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+</div>
+
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="hidden">
+
+<div class="card">
+<h3>Account Info</h3>
+<p><b>Account No:</b> <span id="accNo"></span></p>
+<p><b>Balance:</b> ₹<span id="balance"></span></p>
+<button onclick="logout()">Logout</button>
+</div>
+
+<div class="dashboard">
+
+<div class="card">
+<h3>Deposit</h3>
+<input id="depAmt" type="number" placeholder="Amount">
+<button onclick="deposit()">Deposit</button>
+</div>
+
+<div class="card">
+<h3>Withdraw</h3>
+<input id="withAmt" type="number" placeholder="Amount">
+<button onclick="withdraw()">Withdraw</button>
+</div>
+
+<div class="card">
+<h3>Transfer</h3>
+<input id="transferUser" placeholder="Receiver Username">
+<input id="transferAmt" type="number" placeholder="Amount">
+<button onclick="transfer()">Transfer</button>
+</div>
+
+<div class="card">
+<h3>Loan Apply</h3>
+<input id="loanAmt" type="number" placeholder="Loan Amount">
+<input id="loanYears" type="number" placeholder="Years">
+<button onclick="applyLoan()">Apply Loan</button>
+</div>
+
+<div class="card">
+<h3>Interest Add (5%)</h3>
+<button onclick="addInterest()">Add Interest</button>
+</div>
+
+</div>
+
+<div class="card">
+<h3>Search Transactions</h3>
+<input id="searchBox" placeholder="Search">
+<button onclick="searchTransaction()">Search</button>
+</div>
+
+<div class="card">
+<h3>Transaction History</h3>
+<div id="history"></div>
+</div>
+
+<div class="card admin-box hidden" id="adminPanel">
+<h3>Admin Panel - All Users</h3>
+<div id="allUsers"></div>
+</div>
+
+</div>
+
+</div>
+
+<script>
+let users = JSON.parse(localStorage.getItem("bankUsers")) || [];
+let currentUser = null;
+
+function save(){localStorage.setItem("bankUsers",JSON.stringify(users));}
+
+function generateAccNo(){
+return "SB"+Math.floor(100000+Math.random()*900000);
+}
+
+function register(){
+let u=document.getElementById("regUser").value;
+let p=document.getElementById("regPass").value;
+if(!u||!p) return alert("Enter details");
+if(users.find(x=>x.username===u)) return alert("User exists");
+
+users.push({
+username:u,
+password:p,
+balance:0,
+accNo:generateAccNo(),
+transactions:[]
+});
+save();
+alert("Registered");
+}
+
+function login(){
+let u=document.getElementById("logUser").value;
+let p=document.getElementById("logPass").value;
+let user=users.find(x=>x.username===u && x.password===p);
+if(!user) return alert("Invalid");
+
+currentUser=user;
+document.getElementById("auth").classList.add("hidden");
+document.getElementById("dashboard").classList.remove("hidden");
+document.getElementById("topUser").innerText="Welcome "+u;
+if(u==="admin") document.getElementById("adminPanel").classList.remove("hidden");
+updateUI();
+}
+
+function logout(){
+currentUser=null;
+document.getElementById("auth").classList.remove("hidden");
+document.getElementById("dashboard").classList.add("hidden");
+document.getElementById("topUser").innerText="";
+}
+
+function deposit(){
+let amt=parseFloat(document.getElementById("depAmt").value);
+if(amt>0){
+currentUser.balance+=amt;
+addTransaction("Deposited ₹"+amt);
+}
+}
+
+function withdraw(){
+let amt=parseFloat(document.getElementById("withAmt").value);
+if(amt>0 && amt<=currentUser.balance){
+currentUser.balance-=amt;
+addTransaction("Withdrew ₹"+amt);
+}
+}
+
+function transfer(){
+let receiver=document.getElementById("transferUser").value;
+let amt=parseFloat(document.getElementById("transferAmt").value);
+let rec=users.find(x=>x.username===receiver);
+if(rec && amt>0 && amt<=currentUser.balance){
+currentUser.balance-=amt;
+rec.balance+=amt;
+addTransaction("Transferred ₹"+amt+" to "+receiver);
+rec.transactions.push("Received ₹"+amt+" from "+currentUser.username+" ("+new Date().toLocaleString()+")");
+save();
+updateUI();
+}
+}
+
+function applyLoan(){
+let amt=parseFloat(document.getElementById("loanAmt").value);
+let years=parseFloat(document.getElementById("loanYears").value);
+if(amt>0 && years>0){
+let emi=(amt*1.1)/(years*12);
+currentUser.balance+=amt;
+addTransaction("Loan ₹"+amt+" credited | EMI ₹"+emi.toFixed(2));
+}
+}
+
+function addInterest(){
+let interest=currentUser.balance*0.05;
+currentUser.balance+=interest;
+addTransaction("Interest Added ₹"+interest.toFixed(2));
+}
+
+function addTransaction(msg){
+currentUser.transactions.push(msg+" ("+new Date().toLocaleString()+")");
+save();
+updateUI();
+}
+
+function searchTransaction(){
+let term=document.getElementById("searchBox").value.toLowerCase();
+let filtered=currentUser.transactions.filter(t=>t.toLowerCase().includes(term));
+displayTransactions(filtered);
+}
+
+function displayTransactions(list){
+let h=document.getElementById("history");
+h.innerHTML="";
+list.slice().reverse().forEach(t=>{
+h.innerHTML+=`<div class="transaction">${t}</div>`;
+});
+}
+
+function updateUI(){
+document.getElementById("balance").innerText=currentUser.balance.toFixed(2);
+document.getElementById("accNo").innerText=currentUser.accNo;
+displayTransactions(currentUser.transactions);
+
+if(currentUser.username==="admin"){
+let box=document.getElementById("allUsers");
+box.innerHTML="";
+users.forEach(u=>{
+box.innerHTML+=`<div>${u.username} - ₹${u.balance}</div>`;
+});
+}
+}
+</script>
+
+</body>
+</html>
